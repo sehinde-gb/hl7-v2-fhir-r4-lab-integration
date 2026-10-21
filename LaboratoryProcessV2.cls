@@ -4,15 +4,10 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
 
     Method OnRequest(pRequest As %Library.Persistent, Output pResponse As %Library.Persistent) As %Status
     {
-    // -----------------------------------------
-    // 1. Confirm the incoming runtime object
-    // -----------------------------------------
-
-    Set ^LabIntegrationDebug("RequestClass") = $CLASSNAME(pRequest)
-
+   
 
     // -----------------------------------------
-    // 2. Extract and validate message type
+    // 1. Extract and validate message type
     // -----------------------------------------
 
     Set messageType = pRequest.GetValueAt("MSH:MessageType.MessageCode")
@@ -31,7 +26,7 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
 
 
     // -----------------------------------------
-    // 3. Find the PID segment
+    // 2. Find the PID segment
     // -----------------------------------------
 
     Set segmentIndex = ""
@@ -51,7 +46,7 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
 
 
     // -----------------------------------------
-    // 4. Extract patient business identity
+    // 3. Extract patient business identity
     // -----------------------------------------
 
   
@@ -65,7 +60,7 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
     
 
     // -----------------------------------------
-    // 5. Validate patient business identity
+    // 4. Validate patient business identity
     // -----------------------------------------
 
 
@@ -80,7 +75,7 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
    
 
     // -----------------------------------------
-    // 6. Find the OBX segment
+    // 5. Find the OBX segment
     // -----------------------------------------
 
     Set segmentIndex = ""
@@ -236,11 +231,14 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
     Set ^LabIntegrationDebug("FHIRJSON") = fhirJSON
     Set fhirRequest = ##class(LabIntegration.FHIRRequest).%New()
     Set fhirRequest.FHIRJSON = fhirJSON
-    Set sendStatus = ..SendRequestSync("FHIROperation", fhirRequest)
-
+    Set sendStatus = ..SendRequestSync("FHIROperation", fhirRequest, .fhirResponse)
+    If $$$ISERR(sendStatus) Quit sendStatus
+   
 
     Quit $$$OK
 }
+
+
     
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
