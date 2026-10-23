@@ -225,13 +225,23 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
     Set fhirEffectiveDateTime = observationYear _ "-" _ observationMonth _ "-" _ observationDay _ "T" _ observationHour _ ":" _ observationMinute _ ":" _ observationSecond_ "+01:00"
     Set ^LabIntegrationDebug("FHIRDateTimeLocal") = fhirEffectiveDateTime
     Set fhirObservation.effectiveDateTime = fhirEffectiveDateTime
+    // SERIALIZATION: Convert the completed FHIR Observation object into JSON
+    // so it can be sent to the FHIR server. Direction: OBJECT -> JSON.
     Set fhirJSONStream = fhirObservation.ToJSON()
+    // Read the serialized JSON from the stream into a string.
+    // fhirJSON now holds the JSON text that will be placed in the FHIRRequest.
     Set fhirJSON = fhirJSONStream.Read()
     Set ^LabIntegrationDebug("FHIREffectiveDateTime") = fhirObservation.effectiveDateTime
     Set ^LabIntegrationDebug("FHIRJSON") = fhirJSON
     Set fhirRequest = ##class(LabIntegration.FHIRRequest).%New()
     Set fhirRequest.FHIRJSON = fhirJSON
+
+    // Send the FHIR request synchronously. The leading dot passes fhirResponse ByRef,
+    // allowing SendRequestSync to place any response message into this variable.
     Set sendStatus = ..SendRequestSync("FHIROperation", fhirRequest, .fhirResponse)
+    
+    // Propagate any downstream Business Operation error instead of incorrectly
+    // allowing this Business Process to finish with $$$OK.
     If $$$ISERR(sendStatus) Quit sendStatus
    
 
