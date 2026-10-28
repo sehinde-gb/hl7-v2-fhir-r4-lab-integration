@@ -13,6 +13,19 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
     Set messageType = pRequest.GetValueAt("MSH:MessageType.MessageCode")
     Set triggerEvent = pRequest.GetValueAt("MSH:MessageType.TriggerEvent")
 
+    // SOURCE OCCURRENCE IDENTITY:
+    // The HL7 Message Control ID is MSH-10. InterSystems exposes this
+    // value through the message Identifier property.
+    //
+    // This value forms part of the idempotency key so that two different
+    // HL7 messages are not incorrectly treated as the same occurrence.
+    Set messageControlId = pRequest.Identifier
+
+    If messageControlId = "" {
+        Quit $$$ERROR($$$GeneralError, "Message control ID is missing")
+    }
+    
+
     Set ^LabIntegrationDebug("MessageType") = messageType
     Set ^LabIntegrationDebug("TriggerEvent") = triggerEvent
 
@@ -90,6 +103,15 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
 
     If '$ISOBJECT(obxSegment) {
         Quit $$$ERROR($$$GeneralError, "OBX segment is missing")
+    }
+
+    // SOURCE OCCURRENCE IDENTITY:
+    // OBX-1 is the Set ID for this OBX segment. Together with MSH-10 it
+    // identifies the source observation occurrence within the HL7 message.
+    Set observationSetId = obxSegment.GetValueAt("1")
+
+    If observationSetId = "" {
+        Quit $$$ERROR($$$GeneralError, "Observation set ID is missing")
     }
 
     Set observationValueType = obxSegment.GetValueAt("2")
@@ -225,6 +247,18 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
     Set fhirEffectiveDateTime = observationYear _ "-" _ observationMonth _ "-" _ observationDay _ "T" _ observationHour _ ":" _ observationMinute _ ":" _ observationSecond_ "+01:00"
     Set ^LabIntegrationDebug("FHIRDateTimeLocal") = fhirEffectiveDateTime
     Set fhirObservation.effectiveDateTime = fhirEffectiveDateTime
+    // Build observation identifier here
+    Set observationIdentifier = ##class(HS.FHIR.DTL.vR4.Model.Datatype.Identifier).%New()
+    Set observationIdentifier.system = "http://example.org/fhir/identifier/hl7-source-observation"
+    // Build the identifier dynamically from the source system,
+    // MSH-10 Message Control ID and OBX-1 Set ID.
+    //
+    // Example:
+    //     TRAINING-LAB|MSG003|1
+    Set observationIdentifier.value = "TRAINING-LAB|"_messageControlId_"|"_observationSetId
+    Set ^LabIntegrationDebug("SourceObservationIdentifier") = observationIdentifier.value
+    Do fhirObservation.identifier.Insert(observationIdentifier)
+
     // SERIALIZATION: Convert the completed FHIR Observation object into JSON
     // so it can be sent to the FHIR server. Direction: OBJECT -> JSON.
     Set fhirJSONStream = fhirObservation.ToJSON()
@@ -235,6 +269,8 @@ Class LabIntegration.LaboratoryProcessV2 Extends Ens.BusinessProcess
     Set ^LabIntegrationDebug("FHIRJSON") = fhirJSON
     Set fhirRequest = ##class(LabIntegration.FHIRRequest).%New()
     Set fhirRequest.FHIRJSON = fhirJSON
+    Set fhirRequest.IdentifierSystem = observationIdentifier.system
+    Set fhirRequest.IdentifierValue = observationIdentifier.value
 
     // Send the FHIR request synchronously. The leading dot passes fhirResponse ByRef,
     // allowing SendRequestSync to place any response message into this variable.
