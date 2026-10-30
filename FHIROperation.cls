@@ -21,8 +21,29 @@ Class LabIntegration.FHIROperation Extends Ens.BusinessOperation
         Set identifierSystem = pRequest.IdentifierSystem
         Set identifierValue = pRequest.IdentifierValue
         Set conditionalCreate = "identifier="_identifierSystem_"|"_identifierValue
+        // OPERATIONAL TRACEABILITY:
+        // Expose the source occurrence identity directly so that an operator can
+        // associate the transport, HTTP, FHIR and retry diagnostics below with
+        // the exact HL7 source occurrence being processed.
+        Set ^LabIntegrationDebug("SourceOccurrence") = identifierValue
         Set ^LabIntegrationDebug("ConditionalCreate") = conditionalCreate
 
+        // -----------------------------------------
+        // STAGE 13.1 - REQUIRED FHIR CONFIGURATION
+        // -----------------------------------------
+        // FAIL FAST:
+        // The Business Operation cannot authenticate successfully with the
+        // FHIR server unless both Basic Authentication settings are present.
+        //
+        // Validate these settings before acquiring the occurrence-specific
+        // idempotency lock or constructing/sending an HTTP request.
+        If ..FHIRUsername = "" {
+            Quit $$$ERROR($$$GeneralError, "FHIR username is not configured")
+        }
+
+        If ..FHIRPassword = "" {
+            Quit $$$ERROR($$$GeneralError, "FHIR password is not configured")
+        }
         // LOCAL IDEMPOTENCY GUARD:
         // The FHIR server currently persists Observation.identifier correctly,
         // but its identifier token search does not find the stored identifier.
